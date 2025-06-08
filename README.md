@@ -166,7 +166,7 @@ You can run agents from CLI using two commands: `smolagent` and `webagent`.
 smolagent "Plan a trip to Tokyo, Kyoto and Osaka between Mar 28 and Apr 7."  --model-type "InferenceClientModel" --model-id "Qwen/Qwen2.5-Coder-32B-Instruct" --imports "pandas numpy" --tools "web_search"
 ```
 
-Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
+Meanwhile `webagent` is a specific web-browsing agent using [helium](https://github.com/mherrmann/helium) (read more [here](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py)).
 
 For instance:
 ```bash
@@ -260,3 +260,61 @@ If you use `smolagents` in your publication, please cite it by using the followi
   year =         {2025}
 }
 ```
+
+# Web Browser Automation with Agents 🤖🌐
+
+This project implements an agent-powered web browser automation system that can navigate websites, interact with elements, and extract information automatically.
+
+## Features
+
+- [x] Navigate to web pages
+- [x] Click on elements
+- [x] Search within pages
+- [x] Handle popups and modals
+- [x] Extract information
+
+## Installation
+
+1. Clone this repository
+2. Install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+The system provides two example tasks:
+
+1. Wikipedia Search:
+```python
+python web_browser_agent.py
+```
+This will run the Wikipedia search example by default.
+
+2. GitHub Trending:
+To run the GitHub trending example, uncomment the `run_github_trending()` line in the `if __name__ == "__main__":` block.
+
+## Example Tasks
+
+### Wikipedia Search
+The Wikipedia search example navigates to the Chicago Wikipedia page and finds a sentence containing the word "1992" that mentions a construction accident.
+
+### GitHub Trending
+The GitHub trending example navigates to GitHub's trending page, finds the top trending repository, and checks the commit history of its top author.
+
+## System Requirements
+
+- Python 3.7+
+- Chrome browser installed
+- ChromeDriver (compatible with your Chrome version)
+
+## Notes
+
+- The system uses Chrome in non-headless mode by default
+- Screenshots are automatically captured during navigation
+- The agent can handle popups and modals automatically
+- The system is particularly effective for:
+  - Data extraction from websites
+  - Web research automation
+  - UI testing and verification
+  - Content monitoring
