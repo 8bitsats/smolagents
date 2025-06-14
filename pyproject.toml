@@ -10,7 +10,7 @@ authors = [
   { name="Aymeric Roucher", email="aymeric@hf.co" },
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.13"
 dependencies = [
   "huggingface-hub>=0.30.0",
   "requests>=2.32.3",
@@ -31,7 +31,9 @@ torch = [
 ]
 audio = [
   "soundfile",
-  "smolagents[torch]",
+  "torch",
+  "torchvision",
+  "numpy>=1.21.2",
 ]
 docker = [
   "docker>=7.1.0",
@@ -70,7 +72,9 @@ toolkit = [
 transformers = [
   "accelerate",
   "transformers>=4.0.0",
-  "smolagents[torch]",
+  "torch",
+  "torchvision",
+  "numpy>=1.21.2",
 ]
 vision = [
   "helium",
@@ -81,24 +85,102 @@ vllm = [
   "torch"
 ]
 all = [
-  "smolagents[audio,docker,e2b,gradio,litellm,mcp,mlx-lm,openai,telemetry,toolkit,transformers,vision,bedrock]",
+  "accelerate",
+  "arize-phoenix",
+  "boto3>=1.36.18",
+  "docker>=7.1.0",
+  "duckduckgo-search>=6.3.7",
+  "e2b-code-interpreter>=1.0.3",
+  "gradio>=5.14.0",
+  "helium",
+  "litellm>=1.60.2",
+  "markdownify>=0.14.1",
+  "mcp",
+  "mcpadapt>=0.0.19",
+  "mlx-lm",
+  "numpy>=1.21.2",
+  "openai>=1.58.1",
+  "openinference-instrumentation-smolagents>=0.1.4",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-sdk",
+  "python-dotenv>=1.0.1",
+  "selenium",
+  "soundfile",
+  "torch",
+  "torchvision",
+  "transformers>=4.0.0",
+  "websocket-client",
 ]
 quality = [
   "ruff>=0.9.0",
 ]
 test = [
-  "ipython>=8.31.0", # for interactive environment tests
-  "pandas>=2.2.3",
-  "pytest>=8.1.0",
-  "pytest-datadir",
-  "python-dotenv>=1.0.1", # For test_all_docs
-  "smolagents[all]",
-  "rank-bm25", # For test_all_docs
   "Wikipedia-API>=0.8.1",
+  "accelerate",
+  "arize-phoenix",
+  "boto3>=1.36.18",
+  "docker>=7.1.0",
+  "duckduckgo-search>=6.3.7",
+  "e2b-code-interpreter>=1.0.3",
+  "gradio>=5.14.0",
+  "helium",
+  "ipython>=8.31.0", # for interactive environment tests
+  "litellm>=1.60.2",
+  "markdownify>=0.14.1",
+  "mcp",
+  "mcpadapt>=0.0.19",
+  "mlx-lm",
+  "numpy>=1.21.2",
+  "openai>=1.58.1",
+  "openinference-instrumentation-smolagents>=0.1.4",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-sdk",
+  "pandas>=2.2.3",
+  "pytest-datadir",
+  "pytest>=8.1.0",
+  "python-dotenv>=1.0.1", # For test_all_docs
+  "rank-bm25", # For test_all_docs
+  "selenium",
+  "soundfile",
+  "torch",
+  "torchvision",
+  "transformers>=4.0.0",
+  "websocket-client",
 ]
 dev = [
-  "smolagents[quality,test]",
+  "Wikipedia-API>=0.8.1",
+  "accelerate",
+  "arize-phoenix",
+  "boto3>=1.36.18",
+  "docker>=7.1.0",
+  "duckduckgo-search>=6.3.7",
+  "e2b-code-interpreter>=1.0.3",
+  "gradio>=5.14.0",
+  "helium",
+  "ipython>=8.31.0", # for interactive environment tests
+  "litellm>=1.60.2",
+  "markdownify>=0.14.1",
+  "mcp",
+  "mcpadapt>=0.0.19",
+  "mlx-lm",
+  "numpy>=1.21.2",
+  "openai>=1.58.1",
+  "openinference-instrumentation-smolagents>=0.1.4",
+  "opentelemetry-exporter-otlp",
+  "opentelemetry-sdk",
+  "pandas>=2.2.3",
+  "pytest-datadir",
+  "pytest>=8.1.0",
+  "python-dotenv>=1.0.1", # For test_all_docs
+  "rank-bm25", # For test_all_docs
+  "ruff>=0.9.0",
+  "selenium",
+  "soundfile",
   "sqlalchemy", # for ./examples
+  "torch",
+  "torchvision",
+  "transformers>=4.0.0",
+  "websocket-client",
 ]
 
 [tool.pytest.ini_options]

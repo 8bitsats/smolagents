@@ -186,6 +186,18 @@ Code:
 if Text('Accept cookies?').exists():
     click('I accept')
 ```<end_code>
+
+To type text in input fields, use write() function:
+Code:
+```py
+write("your text here")
+```<end_code>
+
+To press Enter key, use press(ENTER):
+Code:
+```py
+press(ENTER)
+```<end_code>
 """
 
 def run_letsbonk_fun_tokens():
@@ -205,26 +217,46 @@ def run_github_trending():
     print("Final output:")
     print(agent_output)
 
+def run_mcpweb3_voice_agent():
+    """
+    Navigate to about.mcpweb3.fun and interact with the voice agent
+    """
+    mcpweb3_request = """
+    Please navigate to about.mcpweb3.fun and perform the following actions:
+    1. Click the "initialize" button
+    2. Wait for the page to load, then click the voice agent button on the bottom right
+    3. When terms appear, click "accept" to accept the terms
+    4. When a text input box pops up, type "what is solana?" and press Enter
+    
+    Let me know what response you get from the voice agent.
+    """
+    agent_output = agent.run(mcpweb3_request + helium_instructions)
+    print("Final output:")
+    print(agent_output)
+
 if __name__ == "__main__":
-    # Example usage
-    result = extract_token_data_from_letsbonk()
-    print("Extracted token data:")
-    for token in result:
-        print(token)
-    # Export to output directory
-    output_dir = os.path.join(os.getcwd(), "output")
-    os.makedirs(output_dir, exist_ok=True)
-    # Write JSON
-    json_path = os.path.join(output_dir, "letsbonk_tokens.json")
-    with open(json_path, "w") as f:
-        json.dump(result, f, indent=2)
-    print(f"Exported JSON to {json_path}")
-    # Write CSV
-    csv_path = os.path.join(output_dir, "letsbonk_tokens.csv")
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "contract_address", "market_cap", "time_posted"])
-        writer.writeheader()
-        for row in result:
-            writer.writerow(row)
-    print(f"Exported CSV to {csv_path}")
-    # run_github_trending()  # Uncomment to run the GitHub trending example 
+    # Run the MCP Web3 voice agent interaction
+    run_mcpweb3_voice_agent()
+    
+    # Uncomment below to run other examples:
+    # result = extract_token_data_from_letsbonk()
+    # print("Extracted token data:")
+    # for token in result:
+    #     print(token)
+    # # Export to output directory
+    # output_dir = os.path.join(os.getcwd(), "output")
+    # os.makedirs(output_dir, exist_ok=True)
+    # # Write JSON
+    # json_path = os.path.join(output_dir, "letsbonk_tokens.json")
+    # with open(json_path, "w") as f:
+    #     json.dump(result, f, indent=2)
+    # print(f"Exported JSON to {json_path}")
+    # # Write CSV
+    # csv_path = os.path.join(output_dir, "letsbonk_tokens.csv")
+    # with open(csv_path, "w", newline="") as f:
+    #     writer = csv.DictWriter(f, fieldnames=["name", "contract_address", "market_cap", "time_posted"])
+    #     writer.writeheader()
+    #     for row in result:
+    #         writer.writerow(row)
+    # print(f"Exported CSV to {csv_path}")
+    # run_github_trending()  # Uncomment to run the GitHub trending example
