@@ -2,9 +2,14 @@ from io import BytesIO
 from time import sleep
 import os
 import json
-import csv
+import asyncio
+import sys
+import base64
+import requests
 
 import helium
+from solana.rpc.api import Client as SolanaClient
+from solders.keypair import Keypair
 from dotenv import load_dotenv
 from PIL import Image
 from selenium import webdriver
@@ -16,6 +21,74 @@ from smolagents.agents import ActionStep
 
 # Load environment variables
 load_dotenv()
+
+# Add the project directory to Python path to import our custom modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import Jupiter swap integration
+from jupiter_swap import JupiterSwap
+
+# Custom Solana Wallet class implementation
+class SolanaWallet:
+    def __init__(self, client, keypair):
+        self.client = client
+        self.keypair = keypair
+        self.pubkey = keypair.pubkey()
+    
+    def get_balance(self):
+        """Get the SOL balance for this wallet"""
+        try:
+            response = self.client.get_balance(self.pubkey)
+            if response and hasattr(response, 'value'):
+                # Convert from lamports (10^-9 SOL) to SOL
+                return response.value / 1_000_000_000
+            return 0
+        except Exception as e:
+            print(f"Error getting balance: {e}")
+            return 0
+            
+    def send_sol(self, recipient_address, amount_sol):
+        """Send SOL to a recipient address"""
+        from solana.transaction import Transaction
+        from solana import system_program
+        import base58
+        
+        try:
+            # Create a transfer instruction
+            transfer_instruction = system_program.transfer(
+                system_program.TransferParams(
+                    from_pubkey=self.pubkey,
+                    to_pubkey=recipient_address,
+                    lamports=int(amount_sol * 1_000_000_000)
+                )
+            )
+            
+            # Create and sign transaction
+            transaction = Transaction().add(transfer_instruction)
+            response = self.client.send_transaction(
+                transaction, self.keypair
+            )
+            return response
+        except Exception as e:
+            print(f"Error sending SOL: {e}")
+            return None
+
+# Initialize Solana client and wallet
+try:
+    solana_client = SolanaClient("https://mainnet.helius-rpc.com/?api-key=c55c146c-71ef-41b9-a574-cb08f359c00c")
+    wallet_path = os.path.expanduser("~/.config/solana/privy-wallet.json")
+    if os.path.exists(wallet_path):
+        with open(wallet_path, 'r') as f:
+            keypair_data = json.loads(f.read())
+            keypair = Keypair.from_bytes(bytes(keypair_data))
+            solana_wallet = SolanaWallet(solana_client, keypair)
+            print(f"Wallet initialized: {solana_wallet.pubkey}")
+    else:
+        print(f"Wallet file not found at {wallet_path}")
+        solana_wallet = None
+except Exception as e:
+    print(f"Error initializing Solana wallet: {e}")
+    solana_wallet = None
 
 @tool
 def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
@@ -128,9 +201,178 @@ model = OpenAIServerModel(
     api_key=os.environ["OPENAI_API_KEY"]
 )
 
+# Initialize Jupiter swap if wallet is available
+jupiter_swap = None
+if solana_wallet:
+    try:
+        jupiter_swap = JupiterSwap(solana_client, solana_wallet.keypair)
+        print("Jupiter swap integration initialized successfully!")
+    except Exception as e:
+        print(f"Error initializing Jupiter swap: {e}")
+        jupiter_swap = None
+
+# Wallet tool implementations
+@tool
+def check_wallet_balance() -> str:
+    """Check the SOL and token balances of the connected wallet"""
+    if solana_wallet is None:
+        return "Wallet is not initialized"
+    
+    # Get SOL balance
+    balance = solana_wallet.get_balance()
+    return f"Wallet balance: {balance} SOL"
+
+@tool
+def send_token(recipient_address: str, amount: float, token_type: str = "SOL") -> str:
+    """Send tokens to a recipient address"""
+    if solana_wallet is None:
+        return "Wallet is not initialized"
+    
+    if token_type != "SOL":
+        return "Only SOL transfers are supported at this time"
+    
+    response = solana_wallet.send_sol(recipient_address, amount)
+    if response:
+        return f"Sent {amount} SOL to {recipient_address}. Response: {response}"
+    else:
+        return f"Failed to send {amount} SOL to {recipient_address}"
+
+@tool
+def get_token_list() -> dict:
+    """
+    Get list of available tokens for swapping on Jupiter
+    """
+    if not jupiter_swap:
+        return {"error": "Jupiter swap not initialized"}
+    
+    try:
+        tokens = jupiter_swap.get_tokens()
+        # Return a subset of the most common tokens to avoid overwhelming response
+        common_tokens = []
+        popular_symbols = ["SOL", "USDC", "BONK", "JUP", "RAY", "MNGO", "ORCA"]
+        
+        for symbol in popular_symbols:
+            token = jupiter_swap.get_token_info(tokens, symbol)
+            if token:
+                common_tokens.append({
+                    "symbol": token.get("symbol"),
+                    "name": token.get("name"),
+                    "address": token.get("address"),
+                    "decimals": token.get("decimals")
+                })
+        
+        return {
+            "available_tokens": common_tokens,
+            "total_tokens_available": len(tokens)
+        }
+    except Exception as e:
+        return {"error": f"Failed to get token list: {str(e)}"}
+
+@tool
+def get_token_quote(input_token: str, output_token: str, amount: float) -> dict:
+    """
+    Get a price quote for swapping tokens using Jupiter
+    Args:
+        input_token: Symbol of input token (e.g., "SOL", "USDC")
+        output_token: Symbol of output token (e.g., "BONK", "JUP")
+        amount: Amount of input token to swap
+    """
+    if not jupiter_swap:
+        return {"error": "Jupiter swap not initialized"}
+    
+    try:
+        # Get tokens info
+        tokens = jupiter_swap.get_tokens()
+        input_token_info = jupiter_swap.get_token_info(tokens, input_token)
+        output_token_info = jupiter_swap.get_token_info(tokens, output_token)
+        
+        if not input_token_info:
+            return {"error": f"Input token {input_token} not found"}
+        
+        if not output_token_info:
+            return {"error": f"Output token {output_token} not found"}
+        
+        # Calculate amount in lamports/smallest unit
+        decimals = input_token_info.get("decimals", 9)
+        amount_in_smallest_units = int(amount * (10 ** decimals))
+        
+        # Get quote
+        quote = jupiter_swap.get_quote(
+            input_token_info["address"],
+            output_token_info["address"],
+            amount_in_smallest_units
+        )
+        
+        if "error" in quote:
+            return quote
+        
+        # Format the response to be more readable
+        out_amount = int(quote.get("outAmount", 0))
+        out_decimals = output_token_info.get("decimals", 9)
+        human_out_amount = out_amount / (10 ** out_decimals)
+        
+        return {
+            "input": f"{amount} {input_token}",
+            "output": f"{human_out_amount} {output_token}",
+            "price": f"1 {input_token} = {human_out_amount/amount} {output_token}",
+            "slippage": f"{quote.get('priceImpactPct', 0) * 100:.2f}%"
+        }
+    except Exception as e:
+        return {"error": f"Failed to get quote: {str(e)}"}
+
+@tool
+def swap_tokens(input_token: str, output_token: str, amount: float) -> dict:
+    """
+    Swap tokens using Jupiter
+    Args:
+        input_token: Symbol of input token (e.g., "SOL", "USDC")
+        output_token: Symbol of output token (e.g., "BONK", "JUP")
+        amount: Amount of input token to swap
+    """
+    if not jupiter_swap:
+        return {"error": "Jupiter swap not initialized"}
+    
+    try:
+        # Get tokens info
+        tokens = jupiter_swap.get_tokens()
+        input_token_info = jupiter_swap.get_token_info(tokens, input_token)
+        output_token_info = jupiter_swap.get_token_info(tokens, output_token)
+        
+        if not input_token_info:
+            return {"error": f"Input token {input_token} not found"}
+        
+        if not output_token_info:
+            return {"error": f"Output token {output_token} not found"}
+        
+        # Calculate amount in lamports/smallest unit
+        decimals = input_token_info.get("decimals", 9)
+        amount_in_smallest_units = int(amount * (10 ** decimals))
+        
+        # Execute swap
+        result = jupiter_swap.swap(
+            input_token_info["address"],
+            output_token_info["address"],
+            amount_in_smallest_units
+        )
+        
+        if "error" in result:
+            return result
+            
+        # Get updated balance after swap
+        try:
+            new_balance = solana_wallet.get_balance()
+            result["new_sol_balance"] = new_balance
+        except:
+            pass
+            
+        return result
+    except Exception as e:
+        return {"error": f"Swap failed: {str(e)}"}
+
 # Create the agent
 agent = CodeAgent(
-    tools=[go_back, close_popups, search_item_ctrl_f, extract_token_data_from_letsbonk],
+    tools=[go_back, close_popups, search_item_ctrl_f, extract_token_data_from_letsbonk, 
+           check_wallet_balance, send_token, get_token_list, get_token_quote, swap_tokens],
     model=model,
     additional_authorized_imports=["helium"],
     step_callbacks=[save_screenshot],
@@ -234,29 +476,62 @@ def run_mcpweb3_voice_agent():
     print("Final output:")
     print(agent_output)
 
-if __name__ == "__main__":
-    # Run the MCP Web3 voice agent interaction
-    run_mcpweb3_voice_agent()
+# This version is removed to avoid duplication
+
+# This version is removed to avoid duplication
+
+def run_wallet_demo():
+    """Run a demo of the wallet functionality"""
+    if solana_wallet is None:
+        print("Wallet not initialized. Cannot run demo.")
+        return
     
-    # Uncomment below to run other examples:
-    # result = extract_token_data_from_letsbonk()
-    # print("Extracted token data:")
-    # for token in result:
-    #     print(token)
-    # # Export to output directory
-    # output_dir = os.path.join(os.getcwd(), "output")
-    # os.makedirs(output_dir, exist_ok=True)
-    # # Write JSON
-    # json_path = os.path.join(output_dir, "letsbonk_tokens.json")
-    # with open(json_path, "w") as f:
-    #     json.dump(result, f, indent=2)
-    # print(f"Exported JSON to {json_path}")
-    # # Write CSV
-    # csv_path = os.path.join(output_dir, "letsbonk_tokens.csv")
-    # with open(csv_path, "w", newline="") as f:
-    #     writer = csv.DictWriter(f, fieldnames=["name", "contract_address", "market_cap", "time_posted"])
-    #     writer.writeheader()
-    #     for row in result:
-    #         writer.writerow(row)
-    # print(f"Exported CSV to {csv_path}")
-    # run_github_trending()  # Uncomment to run the GitHub trending example
+    print("\n=== Wallet Demo ===\n")
+    
+    # Step 1: Check balance
+    balance_result = check_wallet_balance()
+    print(f"Balance check: {balance_result}")
+    
+    # Step 2: Show available tokens for swapping
+    if jupiter_swap:
+        print("\n--- Available Tokens for Swapping ---")
+        tokens_result = get_token_list()
+        if "error" not in tokens_result:
+            for token in tokens_result.get("available_tokens", []):
+                print(f"- {token['symbol']}: {token['name']} ({token['address']})")
+        
+        # Step 3: Get a quote for SOL to BONK (without executing)
+        print("\n--- Sample Quote: SOL to BONK ---")
+        quote_result = get_token_quote("SOL", "BONK", 0.01)
+        print(f"Quote: {quote_result}")
+    
+    print("\n=== Demo Complete ===\n")
+
+
+if __name__ == "__main__":
+    # Print wallet status
+    if solana_wallet:
+        print("Solana wallet initialized successfully!")
+        try:
+            balance = solana_wallet.get_balance()
+            print(f"Wallet SOL balance: {balance} SOL")
+        except Exception as e:
+            print(f"Error checking wallet balance: {e}")
+    else:
+        print("Failed to initialize Solana wallet.")
+    
+    # Set environment variable to determine which demo to run
+    if os.environ.get("RUN_TYPE") == "WALLET_DEMO":
+        # Run the wallet demo
+        print("Running wallet demo")
+        run_wallet_demo()
+    elif os.environ.get("RUN_TYPE") == "BONK":
+        # Run the BONK demo - if available
+        if "run_bonk_agent" in globals():
+            asyncio.run(run_bonk_agent())
+        else:
+            print("BONK agent functionality not available")
+            run_wallet_demo()
+    else:
+        # Default to running wallet demo
+        run_wallet_demo()
